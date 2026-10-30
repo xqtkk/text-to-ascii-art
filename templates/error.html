@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Code}} · ASCII Studio</title>
+  <link rel="stylesheet" href="/static/css/error.css">
+</head>
+<body>
+  <header class="site-header"><a class="brand" href="/"><span class="brand-mark">A</span><span>ASCII<span class="brand-light"> Studio</span></span></a><a class="back-link" href="/">Back to generator</a></header>
+  <main class="error-card"><p class="eyebrow">REQUEST ERROR</p><p class="error-code">{{.Code}}</p><h1>{{.Message}}</h1><p class="error-copy">Try again with a different request.</p><a class="button" href="/">Return to generator <span aria-hidden="true">→</span></a></main>
+</body>
+</html>

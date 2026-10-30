@@ -2,86 +2,80 @@ package web
 
 import (
 	"context"
-	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	assets "text-to-ascii-art"
 )
 
 type Data struct {
 	Input  string
 	Output string
+	Font   string
+}
+
+type ApplicationError struct {
+	Message string
+	Code    int
 }
 
 type Application struct {
-	errorLog *log.Logger
-	infoLog  *log.Logger
+	errorLog  *log.Logger
+	infoLog   *log.Logger
+	templates *template.Template
 }
 
 func NewApplication(errorLog, infoLog *log.Logger) *Application {
 	return &Application{
-		errorLog: errorLog,
-		infoLog:  infoLog,
+		errorLog:  errorLog,
+		infoLog:   infoLog,
+		templates: template.Must(template.ParseFS(assets.Files, "templates/*.html")),
 	}
 }
 
 func NewServer(addr *string, errorLog *log.Logger, mux *http.ServeMux) *http.Server {
 	return &http.Server{
-		Addr:     *addr,
-		ErrorLog: errorLog,
-		Handler:  mux,
+		Addr:              *addr,
+		ErrorLog:          errorLog,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 }
 
 func Web(addr *string) {
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime)
-
 	app := NewApplication(errorLog, infoLog)
-
-	// Создаем канал для приема системных сигналов
-	sigs := make(chan os.Signal, 1)
-
-	// Перехватываем сигналы типа SIGINT
-	signal.Notify(sigs, syscall.SIGINT)
-
-	// Создаем HTTP сервер
 	server := NewServer(addr, errorLog, app.Routes())
 
-	// Канал для завершения работы
-	done := make(chan bool, 1)
+	stop, stopSignal := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignal()
 
-	// Запускаем горутину для обработки сигналов
+	serverErrors := make(chan error, 1)
 	go func() {
-		sig := <-sigs
-		if sig == os.Interrupt {
-			infoLog.Printf("Сервер на http://localhost%s выключен", *addr)
-		}
+		infoLog.Printf("Server listening at http://localhost%s", *addr)
+		serverErrors <- server.ListenAndServe()
+	}()
 
-		// Контекст с таймаутом для завершения сервера
+	select {
+	case err := <-serverErrors:
+		if err != nil && err != http.ErrServerClosed {
+			errorLog.Printf("server: %v", err)
+		}
+	case <-stop.Done():
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-
-		// Завершаем работу сервера
 		if err := server.Shutdown(ctx); err != nil {
-			fmt.Println("Ошибка при завершении работы сервера:", err)
+			errorLog.Printf("server shutdown: %v", err)
 		}
-		done <- true
-	}()
-
-	// Запуск HTTP сервера в горутине
-	go func() {
-		infoLog.Printf("Запуск сервера на http://localhost%s", *addr)
-
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errorLog.Printf("Ошибка при запуске сервера на http://localhost%s", *addr)
-			errorLog.Println(err)
-		}
-	}()
-
-	// Ожидаем сигнала завершения
-	<-done
+		infoLog.Println("Server stopped")
+	}
 }

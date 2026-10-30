@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f3">
+  <title>ASCII Studio</title>
+  <link rel="stylesheet" href="/static/css/home.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="ASCII Studio home"><span class="brand-mark">A</span><span>ASCII<span class="brand-light"> Studio</span></span></a>
+    <span class="header-note">Turn plain text into character art</span>
+  </header>
+  <main class="page-shell">
+    <section class="hero">
+      <p class="eyebrow">TEXT GENERATOR</p>
+      <h1>Make something<br><span>in ASCII.</span></h1>
+      <p class="intro">Type a message, pick a style, and create a text-art version you can copy or download.</p>
+    </section>
+
+    <section class="workspace" aria-label="ASCII art generator">
+      <form action="/ascii-art" method="post" class="generator-form">
+        <label for="input">Your text</label>
+        <textarea id="input" name="input" maxlength="500" placeholder="Write something here…" required>{{.Input}}</textarea>
+        <div class="field-meta"><span>Printable English characters work best.</span><span id="char-count">0 / 500</span></div>
+
+        <div class="form-bottom">
+          <div class="font-field">
+            <label for="font">Style</label>
+            <select id="font" name="font">
+              <option value="standard" {{if eq .Font "standard"}}selected{{end}}>Standard</option>
+              <option value="shadow" {{if eq .Font "shadow"}}selected{{end}}>Shadow</option>
+              <option value="thinkertoy" {{if eq .Font "thinkertoy"}}selected{{end}}>Thinkertoy</option>
+            </select>
+          </div>
+          <button class="button button-primary" type="submit">Generate art <span aria-hidden="true">→</span></button>
+        </div>
+      </form>
+
+      {{if .Output}}
+      <section class="result" aria-live="polite">
+        <div class="result-heading"><div><p class="eyebrow">YOUR RESULT</p><h2>Looking good.</h2></div><button class="button button-secondary" type="button" id="copy-button">Copy art</button></div>
+        <pre id="output">{{.Output}}</pre>
+        <form action="/export" method="post" class="export-form">
+          <input type="hidden" name="input" value="{{.Input}}">
+          <input type="hidden" name="font" value="{{.Font}}">
+          <button class="text-button" type="submit">Download as .txt <span aria-hidden="true">↓</span></button>
+        </form>
+      </section>
+      {{end}}
+    </section>
+    <p class="footnote">Three classic fonts · Free to use · No account needed</p>
+  </main>
+  <script src="/static/js/main.js" defer></script>
+</body>
+</html>

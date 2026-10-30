@@ -1,0 +1,6 @@
+.git
+.gitignore
+*.exe
+*.zip
+*.test
+coverage.out

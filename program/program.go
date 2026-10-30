@@ -2,100 +2,86 @@ package program
 
 import (
 	"bufio"
-	"os"
+	"embed"
+	"fmt"
+	"strings"
 )
 
-func Split(text string) (words []string) {
-	count := 0
+//go:embed banners/*.txt
+var bannerFiles embed.FS
 
-	for _, r := range text {
-		if r == '\n' {
-			count++
-		}
-	}
-
-	if count == len(text) {
-		return []string{}
-	}
-
-	word := ""
-
-	for i := 0; i < len(text); i++ {
-		if text[i] == '\n' {
-			words = append(words, word)
-			word = ""
-
-			if i == len(word)-1 {
-				words = append(words, word)
-			}
-
-			continue
-		}
-
-		word += string(text[i])
-	}
-
-	if len(word) != 0 {
-		words = append(words, word)
-	}
-
-	return
+var allowedBanners = map[string]string{
+	"standard":   "standard.txt",
+	"shadow":     "shadow.txt",
+	"thinkertoy": "thinkertoy.txt",
 }
 
-func GetFont(banner string) (map[rune][]string, error) {
-	file, err := os.Open(banner)
+// Split divides text into lines while preserving intentional empty lines.
+func Split(text string) []string {
+	return strings.Split(text, "\n")
+}
+
+func GetFont(name string) (map[rune][]string, error) {
+	fileName, ok := allowedBanners[name]
+	if !ok {
+		return nil, fmt.Errorf("unknown font %q", name)
+	}
+
+	file, err := bannerFiles.Open("banners/" + fileName)
 	if err != nil {
-		return map[rune][]string{}, err
+		return nil, fmt.Errorf("open embedded font: %w", err)
 	}
+	defer file.Close()
 
-	font, count, r := make(map[rune][]string, 8), 0, ' '
-
-	for scanner := bufio.NewScanner(file); scanner.Scan(); count++ {
-		text := scanner.Text()
-		if count != 0 && count != 9 {
-			font[r] = append(font[r], text)
-		} else if count == 9 {
-			count = 0
-			r++
+	font := make(map[rune][]string, 95)
+	scanner := bufio.NewScanner(file)
+	lines := make([]string, 0, 9)
+	character := rune(' ')
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+		if len(lines) != 9 {
+			continue
 		}
+		font[character] = append([]string(nil), lines[1:]...)
+		character++
+		lines = lines[:0]
 	}
-
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read embedded font: %w", err)
+	}
+	if len(font) != 95 {
+		return nil, fmt.Errorf("font %q is incomplete", name)
+	}
 	return font, nil
 }
 
-func TextToASCIIArt(text, banner string) (output string, err error) {
-	font, err := GetFont(banner)
+func TextToASCIIArt(text, fontName string) (string, error) {
+	font, err := GetFont(fontName)
 	if err != nil {
-		return
+		return "", err
 	}
-
-	words, art := Split(text), [][8]string{}
-
-	for j, word := range words {
-		art = append(art, [8]string{})
-
-		if word == "" {
-			art[j] = [8]string{"\n", ""}
+	for _, character := range text {
+		if character == '\n' {
 			continue
 		}
-
-		for _, letter := range word {
-			for i, line := range font[letter] {
-				art[j][i] += line
-			}
+		if character < ' ' || character > '~' {
+			return "", fmt.Errorf("unsupported character %q: use printable ASCII characters", character)
 		}
 	}
 
-	for i := 0; i < len(art); i++ {
-		for j := 0; j < len(art[i]); j++ {
-			if art[i][j] == "\n" {
-				output += "\n"
-				break
+	inputLines := Split(text)
+	if strings.HasSuffix(text, "\n") {
+		inputLines = inputLines[:len(inputLines)-1]
+	}
+	rows := make([]string, 0, len(inputLines)*8)
+	for _, inputLine := range inputLines {
+		for row := 0; row < 8; row++ {
+			var output strings.Builder
+			for _, character := range inputLine {
+				output.WriteString(font[character][row])
 			}
-
-			output += art[i][j] + "\n"
+			rows = append(rows, output.String())
 		}
 	}
-
-	return
+	return strings.Join(rows, "\n") + "\n", nil
 }
